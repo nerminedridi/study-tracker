@@ -10,7 +10,7 @@ type Course = {
   id: number;
   name: string;
   examDate: string;
-  lessons: Lesson[];
+  lessons: Lesson[]; 
   note: string;
 };
 
@@ -43,6 +43,7 @@ export default function App() {
 
   function addCourse() {
     if (!name || !date) return;
+
     setCourses([
       ...courses,
       {
@@ -53,6 +54,7 @@ export default function App() {
         note: ""
       }
     ]);
+
     setName("");
     setDate("");
   }
@@ -73,11 +75,12 @@ export default function App() {
   }, [courses]);
 
   return (
-    <div style={{ fontFamily: "system-ui", padding: 20 }}>
+    <div className="container">
+
       <h1>📚 Study Tracker</h1>
 
       {/* DASHBOARD */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+      <div className="card">
         <div>Courses: {stats.courses}</div>
         <div>Lessons: {stats.lessons}</div>
         <div>Done: {stats.done}</div>
@@ -85,7 +88,7 @@ export default function App() {
       </div>
 
       {/* INPUT */}
-      <div style={{ display: "flex", gap: 10 }}>
+      <div className="card">
         <input
           placeholder="Course"
           value={name}
@@ -100,9 +103,9 @@ export default function App() {
       </div>
 
       {/* COURSES */}
-      <div style={{ marginTop: 20 }}>
+      <div className="courses">
         {courses.map((c) => (
-          <div key={c.id} style={{ padding: 10, border: "1px solid #ccc" }}>
+          <div className="card" key={c.id}>
             <h3>{c.name}</h3>
             <p>
               📅 {formatDDMM(c.examDate)} ({daysLeft(c.examDate)} days left)
@@ -110,6 +113,7 @@ export default function App() {
           </div>
         ))}
       </div>
+
     </div>
   );
 }
