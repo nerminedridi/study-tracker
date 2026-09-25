@@ -1,295 +1,95 @@
-import { useEffect, useMemo, useState } from "react";
-import "./App.css";
+import { lazy, Suspense } from "react";
+import { NavLink, Route, Routes } from "react-router";
+import { Icon, type IconName } from "./components/Icon";
+import { formatClock } from "./timer/timer";
+import { useTimer } from "./timer/context";
+import { useAuth } from "./store/context";
+import Dashboard from "./pages/Dashboard";
+import Courses from "./pages/Courses";
+import CourseDetail from "./pages/CourseDetail";
+import Tasks from "./pages/Tasks";
+import Focus from "./pages/Focus";
+import CalendarPage from "./pages/Calendar";
+import Account from "./pages/Account";
+import NotFound from "./pages/NotFound";
 
-type Lesson = {
-  id: number;
-  name: string;
-  done: boolean;
-};
+// Charts are the heaviest dependency; load them only when the Stats page opens.
+const Stats = lazy(() => import("./pages/Stats"));
 
-type Todo = {
-  id: number;
-  text: string;
-  done: boolean;
-};
+const NAV: { to: string; label: string; icon: IconName }[] = [
+  { to: "/", label: "Today", icon: "home" },
+  { to: "/courses", label: "Courses", icon: "book" },
+  { to: "/tasks", label: "Tasks", icon: "check" },
+  { to: "/focus", label: "Focus", icon: "timer" },
+  { to: "/stats", label: "Stats", icon: "chart" },
+  { to: "/calendar", label: "Calendar", icon: "calendar" },
+];
 
-type Course = {
-  id: number;
-  name: string;
-  examDate: string;
-  lessons: Lesson[];
-  note: string;
-};
+function TimerChip() {
+  const { timer, remainingMs } = useTimer();
+  if (timer.status === "idle") return null;
+  return (
+    <NavLink to="/focus" className={`timer-chip ${timer.mode}`}>
+      <Icon name={timer.status === "running" ? "timer" : "pause"} size={14} />
+      {formatClock(remainingMs)}
+    </NavLink>
+  );
+}
 
-function daysLeft(date: string) {
-  return Math.ceil(
-    (new Date(date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+function AccountLink() {
+  const { enabled, user, sync } = useAuth();
+  const label = user ? (user.email ?? "Account") : "Settings";
+  return (
+    <NavLink to="/account" className="nav-link account-link">
+      <Icon name={user ? "cloud" : "user"} />
+      <span className="nav-label">{label}</span>
+      {enabled && user && <span className={`sync-dot sync-${sync}`} title={`Sync: ${sync}`} />}
+    </NavLink>
   );
 }
 
 export default function App() {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [todos, setTodos] = useState<Todo[]>([]);
-
-  const [name, setName] = useState("");
-  const [date, setDate] = useState("");
-
-  const [todoInput, setTodoInput] = useState("");
-  const [lessonInput, setLessonInput] = useState<Record<number, string>>({});
-  const [open, setOpen] = useState<Record<number, boolean>>({});
-
-  const [dark, setDark] = useState(false);
-
-  /* THEME */
-  useEffect(() => {
-    document.body.classList.toggle("dark", dark);
-  }, [dark]);
-
-  /* LOAD */
-  useEffect(() => {
-    const c = localStorage.getItem("courses");
-    const t = localStorage.getItem("todos");
-
-    if (c) setCourses(JSON.parse(c));
-    if (t) setTodos(JSON.parse(t));
-  }, []);
-
-  /* SAVE */
-  useEffect(() => {
-    localStorage.setItem("courses", JSON.stringify(courses));
-  }, [courses]);
-
-  useEffect(() => {
-    localStorage.setItem("todos", JSON.stringify(todos));
-  }, [todos]);
-
-  /* ADD COURSE */
-  function addCourse() {
-    if (!name || !date) return;
-
-    setCourses((p) => [
-      ...p,
-      {
-        id: Date.now(),
-        name,
-        examDate: date,
-        lessons: [],
-        note: ""
-      }
-    ]);
-
-    setName("");
-    setDate("");
-  }
-
-  /* TODO */
-  function addTodo() {
-    if (!todoInput) return;
-    setTodos((p) => [
-      ...p,
-      { id: Date.now(), text: todoInput, done: false }
-    ]);
-    setTodoInput("");
-  }
-
-  function toggleTodo(id: number) {
-    setTodos((p) =>
-      p.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
-    );
-  }
-
-  /* LESSONS */
-  function addLesson(courseId: number) {
-    const text = lessonInput[courseId];
-    if (!text) return;
-
-    setCourses((p) =>
-      p.map((c) =>
-        c.id === courseId
-          ? {
-              ...c,
-              lessons: [
-                ...c.lessons,
-                { id: Date.now(), name: text, done: false }
-              ]
-            }
-          : c
-      )
-    );
-
-    setLessonInput((p) => ({ ...p, [courseId]: "" }));
-  }
-
-  function toggleLesson(courseId: number, lessonId: number) {
-    setCourses((p) =>
-      p.map((c) =>
-        c.id === courseId
-          ? {
-              ...c,
-              lessons: c.lessons.map((l) =>
-                l.id === lessonId ? { ...l, done: !l.done } : l
-              )
-            }
-          : c
-      )
-    );
-  }
-
-  function updateNote(courseId: number, value: string) {
-    setCourses((p) =>
-      p.map((c) =>
-        c.id === courseId ? { ...c, note: value } : c
-      )
-    );
-  }
-
-  /* PROGRESS */
-  function progress(c: Course) {
-    if (!c.lessons.length) return 0;
-    return Math.round(
-      (c.lessons.filter((l) => l.done).length / c.lessons.length) * 100
-    );
-  }
-
-  function color(p: number) {
-    if (p < 40) return "#ef4444";
-    if (p < 70) return "#facc15";
-    return "#22c55e";
-  }
-
-  /* EXAMS SORTED */
-  const exams = useMemo(() => {
-    return [...courses].sort(
-      (a, b) => daysLeft(a.examDate) - daysLeft(b.examDate)
-    );
-  }, [courses]);
-
   return (
-    <div className="container">
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="brand-mark">📚</span>
+          <span className="brand-name">Study Tracker</span>
+        </div>
+        <nav className="nav" aria-label="Main">
+          {NAV.map((n) => (
+            <NavLink key={n.to} to={n.to} end={n.to === "/"} className="nav-link">
+              <Icon name={n.icon} />
+              <span className="nav-label">{n.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="sidebar-foot">
+          <TimerChip />
+          <AccountLink />
+        </div>
+      </aside>
 
-      {/* HEADER */}
-      <h1>📚 Study Tracker</h1>
-
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <button onClick={() => setDark(!dark)}>
-          {dark ? "☀️ Light Mode" : "🌙 Dark Mode"}
-        </button>
-      </div>
-
-      {/* DASHBOARD */}
-      <div className="card dashboard">
-        <div className="stat"><div className="stat-number">{courses.length}</div><div className="stat-label">Courses</div></div>
-        <div className="stat"><div className="stat-number">{courses.reduce((a,c)=>a+c.lessons.length,0)}</div><div className="stat-label">Lessons</div></div>
-        <div className="stat"><div className="stat-number">{courses.reduce((a,c)=>a+c.lessons.filter(l=>l.done).length,0)}</div><div className="stat-label">Done</div></div>
-        <div className="stat"><div className="stat-number">{progress({id:0,name:"",examDate:"",lessons:courses.flatMap(c=>c.lessons),note:""})}%</div><div className="stat-label">Progress</div></div>
-      </div>
-
-      {/* TODO + EXAMS SIDE BY SIDE FIX */}
-      <div className="top-row">
-
-        <div className="card">
-          <h3>🧠 To Do</h3>
-
-          <input
-            value={todoInput}
-            onChange={(e) => setTodoInput(e.target.value)}
-            placeholder="Add task..."
+      <main className="main">
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/courses" element={<Courses />} />
+          <Route path="/courses/:id" element={<CourseDetail />} />
+          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/focus" element={<Focus />} />
+          <Route
+            path="/stats"
+            element={
+              <Suspense fallback={<p className="muted">Loading stats…</p>}>
+                <Stats />
+              </Suspense>
+            }
           />
-          <button onClick={addTodo}>Add</button>
-
-          <ul>
-            {todos.map((t) => (
-              <li key={t.id}>
-                <input type="checkbox" checked={t.done} onChange={() => toggleTodo(t.id)} />
-                {t.text}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="card">
-          <h3>⏳ Exams</h3>
-          <ul>
-            {exams.map((c) => (
-              <li key={c.id}>
-                {c.name} : {c.examDate} : d-{daysLeft(c.examDate)}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="card">
-          <h3>📘 Add Course</h3>
-          <div className="form-bar">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Course" />
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            <button onClick={addCourse}>Add</button>
-          </div>
-        </div>
-
-      </div>
-
-      {/* COURSES */}
-      <div className="courses">
-        {courses.map((c) => {
-          const p = progress(c);
-
-          return (
-            <div className={`card ${p < 40 ? "urgent" : p < 70 ? "soon" : "safe"}`} key={c.id}>
-
-              <h3 onClick={() =>
-                setOpen((o) => ({ ...o, [c.id]: !o[c.id] }))
-              }>
-                📘 {c.name}
-              </h3>
-
-              {/* PROGRESS */}
-              <div className="progress-bar">
-                <div style={{
-                  width: `${p}%`,
-                  height: 10,
-                  background: color(p)
-                }} />
-              </div>
-
-              {/* COLLAPSE */}
-              {open[c.id] && (
-                <>
-                  <input
-                    value={lessonInput[c.id] || ""}
-                    onChange={(e) =>
-                      setLessonInput({ ...lessonInput, [c.id]: e.target.value })
-                    }
-                    placeholder="New lesson"
-                  />
-                  <button onClick={() => addLesson(c.id)}>Add</button>
-
-                  <ul>
-                    {c.lessons.map((l) => (
-                      <li key={l.id}>
-                        <input
-                          type="checkbox"
-                          checked={l.done}
-                          onChange={() => toggleLesson(c.id, l.id)}
-                        />
-                        {l.name}
-                      </li>
-                    ))}
-                  </ul>
-
-                  <textarea
-                    value={c.note}
-                    onChange={(e) => updateNote(c.id, e.target.value)}
-                    placeholder="Notes..."
-                  />
-                </>
-              )}
-
-            </div>
-          );
-        })}
-      </div>
-
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/account" element={<Account />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </main>
     </div>
   );
 }
